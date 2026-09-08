@@ -1,0 +1,9 @@
+# Personal goal data — remove this line if you want to version your goals
+goals.json
+
+# macOS
+.DS_Store
+
+# Local tooling state
+.claude/
+.remember/

@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Goal Tracker</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>">
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --card: #ffffff;
+    --panel: #f4f6fa;
+    --text: #1a202c;
+    --muted: #64748b;
+    --border: #e2e8f0;
+    --accent: #4f46e5;
+    --accent-soft: #eef2ff;
+    --accent-text: #ffffff;
+    --success: #16a34a;
+    --success-soft: #f0fdf4;
+    --danger: #dc2626;
+    --shadow: 0 1px 3px rgba(15, 23, 42, .06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1115;
+      --card: #171a21;
+      --panel: #1f2430;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --border: #2a3140;
+      --accent: #818cf8;
+      --accent-soft: #272b4a;
+      --accent-text: #0f1115;
+      --success: #4ade80;
+      --success-soft: #14231a;
+      --danger: #f87171;
+      --shadow: 0 1px 3px rgba(0, 0, 0, .4);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  /* ---------- header ---------- */
+  header {
+    position: sticky; top: 0; z-index: 10;
+    background: color-mix(in srgb, var(--card) 88%, transparent);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border);
+  }
+  .header-inner {
+    max-width: 900px; margin: 0 auto; padding: 10px 20px;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  .brand { font-weight: 700; font-size: 17px; display: flex; align-items: center; gap: 6px; }
+  .spacer { flex: 1; }
+
+  select, input, textarea {
+    font: inherit; color: var(--text);
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+  }
+  textarea { resize: vertical; }
+  input:focus-visible, textarea:focus-visible, select:focus-visible, button:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 1px;
+  }
+
+  .btn {
+    font: inherit; cursor: pointer;
+    background: var(--card); color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 14px;
+  }
+  .btn:hover { border-color: var(--muted); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+  .btn.primary:hover { filter: brightness(1.08); }
+  .btn.success { color: var(--success); border-color: color-mix(in srgb, var(--success) 40%, var(--border)); }
+  .btn.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, var(--border)); }
+  .btn.small { padding: 4px 10px; font-size: 13px; }
+  .linklike { background: none; border: none; color: var(--muted); cursor: pointer; font: inherit; font-size: 13px; text-decoration: underline; padding: 4px; }
+  .linklike:hover { color: var(--text); }
+  .icon-btn {
+    background: none; border: none; cursor: pointer; color: var(--muted);
+    font-size: 13px; padding: 2px 6px; border-radius: 6px; line-height: 1;
+  }
+  .icon-btn:hover { color: var(--danger); background: var(--panel); }
+  .icon-btn:disabled { opacity: .25; cursor: default; pointer-events: none; }
+  .btn:disabled { opacity: .5; cursor: default; pointer-events: none; }
+
+  .reorder { display: flex; flex-direction: column; }
+  .reorder .icon-btn { font-size: 9px; padding: 1px 5px; }
+  .reorder .icon-btn:hover { color: var(--accent); background: var(--panel); }
+
+  .chip {
+    font-size: 12px; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 999px;
+    padding: 3px 10px; white-space: nowrap;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .chip::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+  .chip.c-ok::before { background: var(--success); }
+  .chip.c-saving::before { background: var(--accent); }
+  .chip.c-error { color: var(--danger); border-color: var(--danger); }
+  .chip.c-error::before { background: var(--danger); }
+
+  /* file menu */
+  .menu { position: relative; }
+  .menu summary {
+    list-style: none; cursor: pointer;
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    padding: 6px 14px;
+  }
+  .menu summary::-webkit-details-marker { display: none; }
+  .menu summary:hover { border-color: var(--muted); }
+  .menu-panel {
+    position: absolute; right: 0; top: calc(100% + 6px); z-index: 20;
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.15);
+    min-width: 220px; padding: 6px; display: flex; flex-direction: column;
+  }
+  .menu-panel button {
+    background: none; border: none; font: inherit; color: var(--text);
+    text-align: left; padding: 8px 10px; border-radius: 6px; cursor: pointer;
+  }
+  .menu-panel button:hover { background: var(--panel); }
+  .menu-note { font-size: 12px; color: var(--muted); padding: 6px 10px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+
+  /* ---------- main ---------- */
+  main { max-width: 900px; margin: 0 auto; padding: 24px 20px 90px; }
+
+  .welcome {
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+    box-shadow: var(--shadow);
+    padding: 48px 32px; text-align: center; max-width: 560px; margin: 40px auto;
+  }
+  .welcome-icon { font-size: 44px; }
+  .welcome h2 { margin: 12px 0 8px; }
+  .welcome p { color: var(--muted); margin: 0 auto 24px; max-width: 42ch; }
+  .welcome-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 14px; }
+  .welcome p.hint { font-size: 12.5px; margin: 16px auto 0; max-width: 46ch; }
+
+  .empty {
+    text-align: center; color: var(--muted);
+    border: 2px dashed var(--border); border-radius: 14px;
+    padding: 48px 20px; margin-top: 20px;
+  }
+  .empty p { margin: 0 0 14px; }
+
+  /* ---------- goal cards ---------- */
+  .goal {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    box-shadow: var(--shadow);
+    margin-bottom: 14px; overflow: hidden;
+  }
+  .goal.completed { opacity: .75; }
+  .goal-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: 14px 18px; cursor: pointer; user-select: none;
+  }
+  .goal-head:hover { background: color-mix(in srgb, var(--panel) 55%, transparent); }
+  .goal-title h3 { margin: 0 0 3px; font-size: 16px; }
+  .goal.completed .goal-title h3 { text-decoration: line-through; text-decoration-thickness: 1px; }
+  .meta { font-size: 12.5px; color: var(--muted); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .badge { font-size: 11px; font-weight: 600; border-radius: 999px; padding: 1px 9px; letter-spacing: .02em; }
+  .b-active { background: var(--accent-soft); color: var(--accent); }
+  .b-done { background: var(--success-soft); color: var(--success); }
+  .goal-side { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
+  .progress { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
+  .bar { width: 110px; height: 6px; border-radius: 999px; background: var(--panel); overflow: hidden; border: 1px solid var(--border); }
+  .bar i { display: block; height: 100%; background: var(--accent); border-radius: 999px; transition: width .25s; }
+  .chev { color: var(--muted); font-size: 12px; }
+
+  .goal-body { padding: 4px 18px 16px; border-top: 1px solid var(--border); }
+  .goal-body section { margin-top: 16px; }
+  .goal-body h4 {
+    margin: 0 0 8px; font-size: 11.5px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .07em; color: var(--muted);
+  }
+  .desc { margin: 12px 0 0; white-space: pre-wrap; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+  @media (max-width: 640px) { .two-col { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border-radius: 10px; padding: 12px 14px; }
+  .panel h4 { margin-bottom: 6px; }
+  .panel p { margin: 0; white-space: pre-wrap; font-size: 14px; }
+  .empty-note { color: var(--muted); font-style: italic; }
+
+  .ms-list { list-style: none; margin: 0 0 8px; padding: 0; }
+  .ms { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
+  .ms input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0; }
+  .ms-title { flex: 1; cursor: text; border-radius: 6px; padding: 1px 6px; margin-left: -6px; }
+  .ms-title:hover { background: var(--panel); }
+  .ms.done .ms-title { text-decoration: line-through; color: var(--muted); }
+  .ms-edit { flex: 1; padding: 3px 8px; }
+  .inline-add { display: flex; gap: 8px; }
+  .inline-add input { flex: 1; }
+
+  .up-form { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; margin-bottom: 12px; }
+  .up-form textarea { width: 100%; }
+  .up-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .up { background: var(--panel); border-radius: 10px; padding: 10px 14px; }
+  .up-text { margin: 0; white-space: pre-wrap; }
+  .up-meta { margin-top: 4px; font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+
+  .goal-actions { display: flex; align-items: center; gap: 8px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
+
+  .done-head { margin: 22px 0 12px; }
+
+  /* ---------- dialog ---------- */
+  dialog {
+    border: none; border-radius: 16px; padding: 0;
+    background: var(--card); color: var(--text);
+    width: min(600px, calc(100vw - 40px));
+    box-shadow: 0 20px 60px rgba(0,0,0,.3);
+  }
+  dialog::backdrop { background: rgba(0,0,0,.45); }
+  dialog form { display: flex; flex-direction: column; gap: 14px; padding: 24px; }
+  dialog h2 { margin: 0 0 2px; font-size: 18px; }
+  dialog label { display: flex; flex-direction: column; gap: 5px; font-size: 13px; font-weight: 600; color: var(--muted); }
+  dialog label input, dialog label textarea { font-weight: 400; color: var(--text); }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 560px) { .form-row { grid-template-columns: 1fr; } }
+  .year-label { max-width: 120px; }
+  dialog menu { display: flex; justify-content: flex-end; gap: 10px; margin: 4px 0 0; padding: 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="brand">🎯 <span>Goal Tracker</span></div>
+    <select id="yearSel" title="Year"></select>
+    <span id="chip" class="chip"></span>
+    <span class="spacer"></span>
+    <details class="menu" id="fileMenu">
+      <summary>File</summary>
+      <div class="menu-panel" id="fileMenuItems"></div>
+    </details>
+    <button class="btn primary" id="newGoalBtn">＋ New goal</button>
+  </div>
+</header>
+
+<main id="main"></main>
+
+<dialog id="goalDialog">
+  <form id="goalForm">
+    <h2 id="dialogTitle">New goal</h2>
+    <input type="hidden" name="id">
+    <label>Title
+      <input name="title" required maxlength="200" placeholder="e.g. Improve build pipeline reliability">
+    </label>
+    <label>Description
+      <textarea name="description" rows="3" placeholder="What is this goal about?"></textarea>
+    </label>
+    <div class="form-row">
+      <label>Impact
+        <textarea name="impact" rows="3" placeholder="Why does this matter? Who benefits?"></textarea>
+      </label>
+      <label>Success measures
+        <textarea name="successMeasures" rows="3" placeholder="How will you know it succeeded?"></textarea>
+      </label>
+    </div>
+    <label class="year-label">Year
+      <input type="number" name="year" min="2000" max="2100">
+    </label>
+    <menu>
+      <button type="button" class="btn" id="dialogCancel">Cancel</button>
+      <button type="submit" class="btn primary" id="dialogSubmit">Create goal</button>
+    </menu>
+  </form>
+</dialog>
+
+<input type="file" id="importInput" accept=".json,application/json" hidden>
+
+<script>
+'use strict';
+
+/* ==================== utilities ==================== */
+const $ = sel => document.querySelector(sel);
+const now = () => new Date().toISOString();
+const uid = p => p + '_' + (crypto.randomUUID ? crypto.randomUUID().slice(0, 8) : Math.random().toString(36).slice(2, 10));
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const fmtDate = iso => iso ? new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '';
+const fmtDateTime = iso => iso ? new Date(iso).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+
+/* ==================== storage ==================== */
+const FSA = 'showDirectoryPicker' in window;
+const FILE_NAME = 'goals.json';
+
+let data = { version: 1, goals: [] };
+let dirHandle = null;      // connected data folder (FileSystemDirectoryHandle)
+let fileHandle = null;     // goals.json inside that folder
+let pendingDir = null;     // stored folder handle awaiting a permission click
+let saveState = 'idle';    // idle | saving | saved | error
+
+/* --- tiny IndexedDB key-value store (persists the folder handle) --- */
+function idbOpen() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('goal-tracker', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('kv');
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+async function idbGet(key) {
+  const db = await idbOpen();
+  return new Promise((res, rej) => {
+    const rq = db.transaction('kv').objectStore('kv').get(key);
+    rq.onsuccess = () => res(rq.result);
+    rq.onerror = () => rej(rq.error);
+  });
+}
+async function idbSet(key, val) {
+  const db = await idbOpen();
+  return new Promise((res, rej) => {
+    const tx = db.transaction('kv', 'readwrite');
+    tx.objectStore('kv').put(val, key);
+    tx.oncomplete = () => res();
+    tx.onerror = () => rej(tx.error);
+  });
+}
+async function idbDel(key) {
+  const db = await idbOpen();
+  return new Promise((res, rej) => {
+    const tx = db.transaction('kv', 'readwrite');
+    tx.objectStore('kv').delete(key);
+    tx.oncomplete = () => res();
+    tx.onerror = () => rej(tx.error);
+  });
+}
+
+/* --- normalize any parsed JSON into a valid data object --- */
+function normalize(d) {
+  const out = { version: 1, goals: [] };
+  if (d && Array.isArray(d.goals)) {
+    for (const g of d.goals) {
+      if (!g || typeof g !== 'object') continue;
+      out.goals.push({
+        id: g.id || uid('g'),
+        year: Number.isFinite(+g.year) ? +g.year : new Date().getFullYear(),
+        title: String(g.title || 'Untitled goal'),
+        description: String(g.description || ''),
+        impact: String(g.impact || ''),
+        successMeasures: String(g.successMeasures || ''),
+        status: g.status === 'completed' ? 'completed' : 'active',
+        createdAt: g.createdAt || now(),
+        completedAt: g.completedAt || null,
+        milestones: Array.isArray(g.milestones)
+          ? g.milestones.filter(m => m && m.title != null).map(m => ({
+              id: m.id || uid('m'), title: String(m.title), done: !!m.done, createdAt: m.createdAt || now() }))
+          : [],
+        updates: Array.isArray(g.updates)
+          ? g.updates.filter(u => u && u.text != null).map(u => ({
+              id: u.id || uid('u'), text: String(u.text), createdAt: u.createdAt || now() }))
+          : [],
+      });
+    }
+  }
+  return out;
+}
+
+/* --- persistence: all writes funnel through one serialized queue --- */
+let persistChain = Promise.resolve();
+function queuePersist() {
+  persistChain = persistChain.then(doPersist).catch(() => {});
+  return persistChain;
+}
+async function doPersist() {
+  if (!fileHandle) return;
+  const json = JSON.stringify(data, null, 2);
+  setSaveState('saving');
+  try {
+    const w = await fileHandle.createWritable();
+    await w.write(json);
+    await w.close();
+    setSaveState('saved');
+  } catch (e) {
+    console.error('save failed', e);
+    setSaveState('error');
+  }
+}
+function save() { queuePersist(); render(); }
+
+async function readHandle(h) {
+  const f = await h.getFile();
+  const text = await f.text();
+  return text.trim() ? normalize(JSON.parse(text)) : null; // null = empty file, keep current data
+}
+
+async function connectFolder() {
+  try {
+    const dir = await showDirectoryPicker({ id: 'goal-tracker', mode: 'readwrite' });
+    await adoptDir(dir);
+  } catch (e) { if (e.name !== 'AbortError') alert('Could not open the folder: ' + e.message); }
+}
+
+/* connect a folder handle: load goals.json from it, creating the file if missing */
+async function adoptDir(dir) {
+  if (dir.requestPermission && await dir.requestPermission({ mode: 'readwrite' }) !== 'granted') return;
+  let fh, existed = true;
+  try { fh = await dir.getFileHandle(FILE_NAME); }
+  catch { fh = await dir.getFileHandle(FILE_NAME, { create: true }); existed = false; }
+  if (existed) {
+    let loaded;
+    try { loaded = await readHandle(fh); }
+    catch { alert(`The ${FILE_NAME} in that folder is not valid JSON. Fix or remove it, then try again.`); return; }
+    if (loaded) { data = loaded; expanded.clear(); }
+  }
+  dirHandle = dir; fileHandle = fh; pendingDir = null;
+  await idbSet('dir', dir);
+  selectedYear = pickDefaultYear();
+  await queuePersist();
+  render();
+}
+
+async function reconnect() {
+  if (!pendingDir) return;
+  try {
+    await adoptDir(pendingDir);
+  } catch (e) {
+    console.error(e);
+    alert('Could not reconnect to the folder (it may have been moved or deleted).');
+    pendingDir = null;
+    await idbDel('dir');
+    render();
+  }
+}
+
+/* console/testing hook */
+window.goalTracker = { connectFolder, adoptDir };
+
+function exportJson() {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'goals.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+/* ==================== state ==================== */
+let selectedYear = new Date().getFullYear();
+let expanded = new Set();
+let showCompleted = true;
+let editingMilestone = null; // { goalId, msId }
+let focusAfterRender = null; // CSS selector to refocus after re-render
+
+const goalById = id => data.goals.find(g => g.id === id);
+
+/* move a goal up/down within its rendered group (same year + same status) */
+function moveGoal(g, dir) {
+  const completed = g.status === 'completed';
+  const group = data.goals.filter(x => x.year === g.year && (x.status === 'completed') === completed);
+  const target = group[group.indexOf(g) + dir];
+  if (!target) return;
+  const i = data.goals.indexOf(g), j = data.goals.indexOf(target);
+  [data.goals[i], data.goals[j]] = [data.goals[j], data.goals[i]];
+  save();
+}
+
+function pickDefaultYear() {
+  const cy = new Date().getFullYear();
+  if (!data.goals.length || data.goals.some(g => g.year === cy)) return cy;
+  return Math.max(...data.goals.map(g => g.year));
+}
+
+/* ==================== rendering ==================== */
+const main = $('#main');
+const chip = $('#chip');
+const yearSel = $('#yearSel');
+const fileMenu = $('#fileMenu');
+const fileMenuItems = $('#fileMenuItems');
+const importInput = $('#importInput');
+const newGoalBtn = $('#newGoalBtn');
+
+function setSaveState(s) { saveState = s; renderChip(); }
+
+function renderChip() {
+  let cls = '', text = '';
+  if (saveState === 'saving') { text = 'Saving…'; cls = 'c-saving'; }
+  else if (saveState === 'error') { text = 'Save failed'; cls = 'c-error'; }
+  else if (fileHandle) { text = 'Saved · ' + FILE_NAME; cls = 'c-ok'; }
+  else { text = 'Not connected'; cls = 'c-local'; }
+  chip.textContent = text;
+  chip.className = 'chip ' + cls;
+}
+
+function renderHeader() {
+  const years = [...new Set([...data.goals.map(g => g.year), new Date().getFullYear(), selectedYear])].sort((a, b) => b - a);
+  yearSel.innerHTML = years.map(y => `<option value="${y}"${y === selectedYear ? ' selected' : ''}>${y}</option>`).join('');
+  yearSel.disabled = !fileHandle;
+  newGoalBtn.disabled = !fileHandle;
+  renderChip();
+
+  let items = '';
+  if (!FSA) {
+    items += `<div class="menu-note">Saving needs Chrome or Edge (File System Access API).</div>`;
+  } else {
+    if (fileHandle) items += `<div class="menu-note">Connected to <b>${esc((dirHandle?.name ? dirHandle.name + '/' : '') + FILE_NAME)}</b></div>`;
+    items += `<button data-menu="folder">${fileHandle ? 'Change data folder…' : 'Choose data folder…'}</button>`;
+    if (fileHandle) {
+      items += `<button data-menu="export">Export a copy…</button>`;
+      items += `<button data-menu="import">Import JSON…</button>`;
+    }
+  }
+  fileMenuItems.innerHTML = items;
+}
+
+function welcomeHtml() {
+  return `<div class="welcome">
+    <div class="welcome-icon">🎯</div>
+    <h2>Track your goals for the year</h2>
+    <p>Create goals with impact and success measures, break them into milestones, and log updates as you contribute through the year. Everything lives in a plain <code>goals.json</code> file.</p>
+    <div class="welcome-actions">
+      <button class="btn primary" data-action="connect-folder">Choose data folder…</button>
+    </div>
+    <p class="hint">Pick the folder that contains <code>index.html</code> — <code>goals.json</code> is loaded from there, or created if it doesn't exist yet.</p>
+  </div>`;
+}
+
+function reconnectHtml() {
+  return `<div class="welcome">
+    <div class="welcome-icon">🎯</div>
+    <h2>Welcome back</h2>
+    <p>Reconnect to the <b>${esc(pendingDir.name || 'data')}</b> folder to load <code>goals.json</code>.</p>
+    <div class="welcome-actions">
+      <button class="btn primary" data-action="reconnect">Reconnect</button>
+      <button class="btn" data-action="connect-folder">Choose a different folder…</button>
+    </div>
+  </div>`;
+}
+
+function unsupportedHtml() {
+  return `<div class="welcome">
+    <div class="welcome-icon">🎯</div>
+    <h2>Browser not supported</h2>
+    <p>This app saves directly to <code>goals.json</code> using the File System Access API, which needs <b>Chrome or Edge</b>. Please open <code>index.html</code> there.</p>
+  </div>`;
+}
+
+function msHtml(g, m) {
+  const editing = editingMilestone && editingMilestone.goalId === g.id && editingMilestone.msId === m.id;
+  return `<li class="ms${m.done ? ' done' : ''}" data-ms="${m.id}">
+    <input type="checkbox"${m.done ? ' checked' : ''} data-action="toggle-ms" aria-label="Milestone done">
+    ${editing
+      ? `<input class="ms-edit" value="${esc(m.title)}" maxlength="200">`
+      : `<span class="ms-title" data-action="edit-ms" title="Click to edit">${esc(m.title)}</span>`}
+    <button class="icon-btn" data-action="del-ms" title="Delete milestone">✕</button>
+  </li>`;
+}
+
+function upHtml(u) {
+  return `<li class="up" data-up="${u.id}">
+    <p class="up-text">${esc(u.text)}</p>
+    <div class="up-meta">${fmtDateTime(u.createdAt)}
+      <button class="icon-btn" data-action="del-update" title="Delete update">✕</button>
+    </div>
+  </li>`;
+}
+
+function goalBodyHtml(g) {
+  const completed = g.status === 'completed';
+  const updates = g.updates.slice().sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+  return `<div class="goal-body">
+    ${g.description ? `<p class="desc">${esc(g.description)}</p>` : ''}
+    <div class="two-col">
+      <div class="panel"><h4>Impact</h4><p>${g.impact ? esc(g.impact) : '<span class="empty-note">Not set</span>'}</p></div>
+      <div class="panel"><h4>Success measures</h4><p>${g.successMeasures ? esc(g.successMeasures) : '<span class="empty-note">Not set</span>'}</p></div>
+    </div>
+    <section>
+      <h4>Milestones</h4>
+      <ul class="ms-list">${g.milestones.map(m => msHtml(g, m)).join('')}</ul>
+      <form class="inline-add" data-action="add-ms">
+        <input class="ms-input" placeholder="Add a milestone…" maxlength="200">
+        <button class="btn small">Add</button>
+      </form>
+    </section>
+    <section>
+      <h4>Updates</h4>
+      <form class="up-form" data-action="add-update">
+        <textarea class="update-input" rows="2" placeholder="What did you do toward this goal?"></textarea>
+        <button class="btn small">Add update</button>
+      </form>
+      <ul class="up-list">${updates.map(upHtml).join('')}</ul>
+    </section>
+    <footer class="goal-actions">
+      <button class="btn small" data-action="edit-goal">Edit</button>
+      ${completed
+        ? `<button class="btn small" data-action="reopen-goal">Reopen</button>`
+        : `<button class="btn small success" data-action="complete-goal">✓ Mark complete</button>`}
+      <span class="spacer"></span>
+      <button class="btn small danger" data-action="delete-goal">Delete</button>
+    </footer>
+  </div>`;
+}
+
+function goalHtml(g, isFirst, isLast) {
+  const completed = g.status === 'completed';
+  const msDone = g.milestones.filter(m => m.done).length;
+  const msTotal = g.milestones.length;
+  const pct = msTotal ? Math.round(msDone / msTotal * 100) : 0;
+  const isOpen = expanded.has(g.id);
+  return `<article class="goal${completed ? ' completed' : ''}" data-id="${g.id}">
+    <div class="goal-head" data-action="toggle" role="button" tabindex="0" aria-expanded="${isOpen}">
+      <div class="goal-title">
+        <h3>${esc(g.title)}</h3>
+        <div class="meta">
+          <span class="badge ${completed ? 'b-done' : 'b-active'}">${completed ? 'Completed' : 'Active'}</span>
+          <span>Created ${fmtDate(g.createdAt)}</span>
+          ${completed && g.completedAt ? `<span>· Completed ${fmtDate(g.completedAt)}</span>` : ''}
+        </div>
+      </div>
+      <div class="goal-side">
+        ${msTotal ? `<div class="progress" title="${msDone} of ${msTotal} milestones done">
+          <div class="bar"><i style="width:${pct}%"></i></div><span>${msDone}/${msTotal}</span>
+        </div>` : ''}
+        <span class="reorder">
+          <button class="icon-btn" data-action="move-up" title="Move up"${isFirst ? ' disabled' : ''}>▲</button>
+          <button class="icon-btn" data-action="move-down" title="Move down"${isLast ? ' disabled' : ''}>▼</button>
+        </span>
+        <span class="chev">${isOpen ? '▾' : '▸'}</span>
+      </div>
+    </div>
+    ${isOpen ? goalBodyHtml(g) : ''}
+  </article>`;
+}
+
+/* keep half-typed milestone/update drafts across re-renders */
+function captureDrafts() {
+  const map = {};
+  main.querySelectorAll('article.goal').forEach(a => {
+    const ms = a.querySelector('.ms-input');
+    const up = a.querySelector('.update-input');
+    if ((ms && ms.value) || (up && up.value)) map[a.dataset.id] = { ms: ms?.value || '', up: up?.value || '' };
+  });
+  return map;
+}
+function restoreDrafts(map) {
+  for (const [id, d] of Object.entries(map)) {
+    const a = main.querySelector(`article[data-id="${id}"]`);
+    if (!a) continue;
+    const ms = a.querySelector('.ms-input');
+    const up = a.querySelector('.update-input');
+    if (ms && d.ms) ms.value = d.ms;
+    if (up && d.up) up.value = d.up;
+  }
+}
+
+function renderMain() {
+  const drafts = captureDrafts();
+  let html = '';
+
+  if (!FSA) {
+    html = unsupportedHtml();
+  } else if (!fileHandle) {
+    html = pendingDir ? reconnectHtml() : welcomeHtml();
+  } else {
+    // goals render in data-file order within each group; the ▲▼ arrows reorder them
+    const yearGoals = data.goals.filter(g => g.year === selectedYear);
+    const active = yearGoals.filter(g => g.status !== 'completed');
+    const done = yearGoals.filter(g => g.status === 'completed');
+
+    if (!yearGoals.length) {
+      html += `<div class="empty">
+        <p>No goals for ${selectedYear} yet.</p>
+        <button class="btn primary" data-action="new-goal">＋ New goal</button>
+      </div>`;
+    }
+    html += active.map((g, i) => goalHtml(g, i === 0, i === active.length - 1)).join('');
+    if (done.length) {
+      html += `<div class="done-head"><button class="linklike" data-action="toggle-completed">${showCompleted ? '▾' : '▸'} Completed (${done.length})</button></div>`;
+      if (showCompleted) html += done.map((g, i) => goalHtml(g, i === 0, i === done.length - 1)).join('');
+    }
+  }
+
+  main.innerHTML = html;
+  restoreDrafts(drafts);
+
+  const editInput = main.querySelector('.ms-edit');
+  if (editInput) { editInput.focus(); editInput.select(); }
+  if (focusAfterRender) {
+    main.querySelector(focusAfterRender)?.focus();
+    focusAfterRender = null;
+  }
+}
+
+function render() { renderHeader(); renderMain(); }
+
+/* ==================== events ==================== */
+main.addEventListener('click', e => {
+  const el = e.target.closest('[data-action]');
+  if (!el) return;
+  const action = el.dataset.action;
+  const article = el.closest('article.goal');
+  const g = article ? goalById(article.dataset.id) : null;
+
+  switch (action) {
+    case 'toggle': {
+      if (expanded.has(g.id)) expanded.delete(g.id); else expanded.add(g.id);
+      render();
+      break;
+    }
+    case 'toggle-completed': showCompleted = !showCompleted; render(); break;
+    case 'new-goal': openGoalDialog(); break;
+    case 'edit-goal': openGoalDialog(g); break;
+    case 'complete-goal': g.status = 'completed'; g.completedAt = now(); save(); break;
+    case 'reopen-goal': g.status = 'active'; g.completedAt = null; save(); break;
+    case 'delete-goal':
+      if (confirm(`Delete goal "${g.title}"? This can't be undone.`)) {
+        data.goals = data.goals.filter(x => x.id !== g.id);
+        expanded.delete(g.id);
+        save();
+      }
+      break;
+    case 'edit-ms': {
+      editingMilestone = { goalId: g.id, msId: el.closest('li.ms').dataset.ms };
+      render();
+      break;
+    }
+    case 'del-ms': {
+      const msId = el.closest('li.ms').dataset.ms;
+      g.milestones = g.milestones.filter(m => m.id !== msId);
+      save();
+      break;
+    }
+    case 'del-update': {
+      const upId = el.closest('li.up').dataset.up;
+      if (confirm('Delete this update?')) {
+        g.updates = g.updates.filter(u => u.id !== upId);
+        save();
+      }
+      break;
+    }
+    case 'move-up': moveGoal(g, -1); break;
+    case 'move-down': moveGoal(g, 1); break;
+    case 'connect-folder': connectFolder(); break;
+    case 'reconnect': reconnect(); break;
+  }
+});
+
+main.addEventListener('submit', e => {
+  e.preventDefault();
+  const form = e.target;
+  const article = form.closest('article.goal');
+  const g = article ? goalById(article.dataset.id) : null;
+  if (!g) return;
+
+  if (form.dataset.action === 'add-ms') {
+    const input = form.querySelector('.ms-input');
+    const t = input.value.trim();
+    if (!t) return;
+    g.milestones.push({ id: uid('m'), title: t, done: false, createdAt: now() });
+    input.value = '';
+    focusAfterRender = `article[data-id="${g.id}"] .ms-input`;
+    save();
+  } else if (form.dataset.action === 'add-update') {
+    const ta = form.querySelector('.update-input');
+    const t = ta.value.trim();
+    if (!t) return;
+    g.updates.push({ id: uid('u'), text: t, createdAt: now() });
+    ta.value = '';
+    save();
+  }
+});
+
+main.addEventListener('change', e => {
+  const cb = e.target.closest('input[data-action="toggle-ms"]');
+  if (!cb) return;
+  const g = goalById(cb.closest('article.goal').dataset.id);
+  const m = g.milestones.find(m => m.id === cb.closest('li.ms').dataset.ms);
+  if (!m) return;
+  m.done = cb.checked;
+  save();
+});
+
+function commitMsEdit(input) {
+  if (!editingMilestone) return;
+  const { goalId, msId } = editingMilestone;
+  editingMilestone = null;
+  const g = goalById(goalId);
+  const m = g?.milestones.find(m => m.id === msId);
+  const v = input.value.trim();
+  if (m && v && v !== m.title) { m.title = v; save(); }
+  else render();
+}
+
+main.addEventListener('keydown', e => {
+  if (e.target.classList?.contains('ms-edit')) {
+    if (e.key === 'Enter') { e.preventDefault(); commitMsEdit(e.target); }
+    else if (e.key === 'Escape') { editingMilestone = null; render(); }
+    return;
+  }
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.dataset?.action === 'toggle') {
+    e.preventDefault();
+    e.target.click();
+  }
+});
+
+main.addEventListener('focusout', e => {
+  if (e.target.classList?.contains('ms-edit')) commitMsEdit(e.target);
+});
+
+yearSel.addEventListener('change', () => { selectedYear = +yearSel.value; render(); });
+
+fileMenuItems.addEventListener('click', e => {
+  const b = e.target.closest('button[data-menu]');
+  if (!b) return;
+  fileMenu.open = false;
+  ({ folder: connectFolder, export: exportJson, import: () => importInput.click() })[b.dataset.menu]();
+});
+document.addEventListener('click', e => {
+  if (fileMenu.open && !fileMenu.contains(e.target)) fileMenu.open = false;
+});
+
+importInput.addEventListener('change', async () => {
+  const file = importInput.files[0];
+  importInput.value = '';
+  if (!file) return;
+  try {
+    const parsed = JSON.parse(await file.text());
+    const n = normalize(parsed);
+    if (!confirm(`Import ${n.goals.length} goal(s)? This replaces the current data.`)) return;
+    data = n;
+    selectedYear = pickDefaultYear();
+    expanded.clear();
+    save();
+  } catch { alert('That file is not valid JSON.'); }
+});
+
+/* ---------- goal create/edit dialog ---------- */
+const dlg = $('#goalDialog');
+const goalForm = $('#goalForm');
+
+function openGoalDialog(goal) {
+  goalForm.reset();
+  const f = goalForm.elements;
+  f.id.value = goal?.id || '';
+  f.title.value = goal?.title || '';
+  f.description.value = goal?.description || '';
+  f.impact.value = goal?.impact || '';
+  f.successMeasures.value = goal?.successMeasures || '';
+  f.year.value = goal?.year ?? selectedYear;
+  $('#dialogTitle').textContent = goal ? 'Edit goal' : 'New goal';
+  $('#dialogSubmit').textContent = goal ? 'Save changes' : 'Create goal';
+  dlg.showModal();
+}
+
+goalForm.addEventListener('submit', e => {
+  e.preventDefault();
+  const f = goalForm.elements;
+  const title = f.title.value.trim();
+  if (!title) return;
+  const year = parseInt(f.year.value, 10) || new Date().getFullYear();
+  const fields = {
+    title,
+    description: f.description.value.trim(),
+    impact: f.impact.value.trim(),
+    successMeasures: f.successMeasures.value.trim(),
+    year,
+  };
+  if (f.id.value) {
+    Object.assign(goalById(f.id.value), fields);
+  } else {
+    const g = { id: uid('g'), ...fields, status: 'active', createdAt: now(), completedAt: null, milestones: [], updates: [] };
+    data.goals.unshift(g); // new goals appear at the top; reorder with the arrows
+    expanded.add(g.id);
+  }
+  selectedYear = year;
+  dlg.close();
+  save();
+});
+$('#dialogCancel').addEventListener('click', () => dlg.close());
+$('#newGoalBtn').addEventListener('click', () => openGoalDialog());
+
+/* ==================== init ==================== */
+async function init() {
+  if (FSA) {
+    try {
+      const dir = await idbGet('dir');
+      if (dir) {
+        const perm = dir.queryPermission ? await dir.queryPermission({ mode: 'readwrite' }) : 'prompt';
+        if (perm === 'granted') {
+          try {
+            const fh = await dir.getFileHandle(FILE_NAME, { create: true });
+            const loaded = await readHandle(fh);
+            if (loaded) data = loaded;
+            dirHandle = dir; fileHandle = fh;
+            saveState = 'saved';
+          } catch (e) { console.warn('stored folder unreadable', e); pendingDir = dir; }
+        } else {
+          pendingDir = dir;
+        }
+      }
+    } catch (e) { console.warn(e); }
+  }
+  selectedYear = pickDefaultYear();
+  render();
+}
+init();
+</script>
+</body>
+</html>
