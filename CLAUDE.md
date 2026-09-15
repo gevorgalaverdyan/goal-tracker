@@ -17,10 +17,11 @@ Yearly employee goal tracker. **One file, zero dependencies, no build, no server
     "impact": "", "successMeasures": "", "status": "active|completed",
     "createdAt": "ISO", "completedAt": null,
     "milestones": [{ "id": "m_xxxx", "title": "", "done": false, "createdAt": "ISO" }],
-    "updates":    [{ "id": "u_xxxx", "text": "", "createdAt": "ISO" }] } ] }
+    "updates":    [{ "id": "u_xxxx", "text": "", "createdAt": "ISO", "editedAt": null, "color": null }] } ] }
 ```
 
 - Array position in `data.goals` is the canonical display order; ▲▼ arrows swap neighbors **within the same year + status group** (`moveGoal`). New goals are `unshift`ed (appear on top).
+- Updates likewise render in **array order** (no sorting) — new ones are `unshift`ed, ▲▼ arrows swap neighbors. They are editable in place (✎ → textarea, Save/Cmd+Enter, Escape cancels); an edit sets `editedAt` (shown as "· edited"). `color` is an optional label from `UPDATE_COLORS` (blue/green/yellow/red/purple), set via swatch dots, rendered as a tinted card with colored left border.
 - `normalize()` sanitizes anything loaded/imported; keep it in sync with schema changes and bump `version` on breaking changes.
 
 ## UI architecture

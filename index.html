@@ -21,6 +21,11 @@
     --success-soft: #f0fdf4;
     --danger: #dc2626;
     --shadow: 0 1px 3px rgba(15, 23, 42, .06);
+    --c-blue: #3b82f6;
+    --c-green: #22c55e;
+    --c-yellow: #eab308;
+    --c-red: #ef4444;
+    --c-purple: #a855f7;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -96,6 +101,7 @@
     font-size: 13px; padding: 2px 6px; border-radius: 6px; line-height: 1;
   }
   .icon-btn:hover { color: var(--danger); background: var(--panel); }
+  .icon-btn.quiet:hover { color: var(--accent); background: var(--panel); }
   .icon-btn:disabled { opacity: .25; cursor: default; pointer-events: none; }
   .btn:disabled { opacity: .5; cursor: default; pointer-events: none; }
 
@@ -209,9 +215,28 @@
   .up-form { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; margin-bottom: 12px; }
   .up-form textarea { width: 100%; }
   .up-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-  .up { background: var(--panel); border-radius: 10px; padding: 10px 14px; }
-  .up-text { margin: 0; white-space: pre-wrap; }
-  .up-meta { margin-top: 4px; font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+  .up { background: var(--panel); border-radius: 10px; padding: 10px 14px; border-left: 3px solid transparent; }
+  .up.c-blue   { border-left-color: var(--c-blue);   background: color-mix(in srgb, var(--c-blue) 10%, var(--panel)); }
+  .up.c-green  { border-left-color: var(--c-green);  background: color-mix(in srgb, var(--c-green) 10%, var(--panel)); }
+  .up.c-yellow { border-left-color: var(--c-yellow); background: color-mix(in srgb, var(--c-yellow) 10%, var(--panel)); }
+  .up.c-red    { border-left-color: var(--c-red);    background: color-mix(in srgb, var(--c-red) 10%, var(--panel)); }
+  .up.c-purple { border-left-color: var(--c-purple); background: color-mix(in srgb, var(--c-purple) 10%, var(--panel)); }
+  .up-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .up-meta { margin-top: 6px; font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .up.editing .up-edit { width: 100%; background: var(--card); }
+
+  .swatches { display: inline-flex; align-items: center; gap: 5px; margin-right: 8px; }
+  .swatch {
+    width: 12px; height: 12px; border-radius: 50%; padding: 0; cursor: pointer;
+    border: 1px solid var(--muted); background: transparent; opacity: .35;
+  }
+  .swatch.s-blue   { background: var(--c-blue);   border-color: transparent; }
+  .swatch.s-green  { background: var(--c-green);  border-color: transparent; }
+  .swatch.s-yellow { background: var(--c-yellow); border-color: transparent; }
+  .swatch.s-red    { background: var(--c-red);    border-color: transparent; }
+  .swatch.s-purple { background: var(--c-purple); border-color: transparent; }
+  .up:hover .swatch, .swatch.selected { opacity: 1; }
+  .swatch.selected { box-shadow: 0 0 0 2px var(--panel), 0 0 0 3.5px var(--muted); }
 
   .goal-actions { display: flex; align-items: center; gap: 8px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
 
@@ -293,6 +318,7 @@ const uid = p => p + '_' + (crypto.randomUUID ? crypto.randomUUID().slice(0, 8) 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmtDate = iso => iso ? new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '';
 const fmtDateTime = iso => iso ? new Date(iso).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+const UPDATE_COLORS = ['blue', 'green', 'yellow', 'red', 'purple'];
 
 /* ==================== storage ==================== */
 const FSA = 'showDirectoryPicker' in window;
@@ -362,7 +388,8 @@ function normalize(d) {
           : [],
         updates: Array.isArray(g.updates)
           ? g.updates.filter(u => u && u.text != null).map(u => ({
-              id: u.id || uid('u'), text: String(u.text), createdAt: u.createdAt || now() }))
+              id: u.id || uid('u'), text: String(u.text), createdAt: u.createdAt || now(), editedAt: u.editedAt || null,
+              color: UPDATE_COLORS.includes(u.color) ? u.color : null }))
           : [],
       });
     }
@@ -454,6 +481,7 @@ let selectedYear = new Date().getFullYear();
 let expanded = new Set();
 let showCompleted = true;
 let editingMilestone = null; // { goalId, msId }
+let editingUpdate = null;    // { goalId, upId }
 let focusAfterRender = null; // CSS selector to refocus after re-render
 
 const goalById = id => data.goals.find(g => g.id === id);
@@ -560,10 +588,33 @@ function msHtml(g, m) {
   </li>`;
 }
 
-function upHtml(u) {
-  return `<li class="up" data-up="${u.id}">
+function upHtml(g, u, isFirst, isLast) {
+  const colorCls = u.color ? ' c-' + u.color : '';
+  const editing = editingUpdate && editingUpdate.goalId === g.id && editingUpdate.upId === u.id;
+  if (editing) {
+    return `<li class="up editing${colorCls}" data-up="${u.id}">
+      <textarea class="up-edit" rows="3">${esc(u.text)}</textarea>
+      <div class="up-meta">
+        <span>${fmtDateTime(u.createdAt)}</span>
+        <span class="spacer"></span>
+        <button class="btn small" data-action="cancel-update-edit">Cancel</button>
+        <button class="btn small primary" data-action="save-update">Save</button>
+      </div>
+    </li>`;
+  }
+  const swatches = `<span class="swatches">
+    <button class="swatch${!u.color ? ' selected' : ''}" data-action="color-update" data-color="" title="No color"></button>
+    ${UPDATE_COLORS.map(c => `<button class="swatch s-${c}${u.color === c ? ' selected' : ''}" data-action="color-update" data-color="${c}" title="${c[0].toUpperCase() + c.slice(1)}"></button>`).join('')}
+  </span>`;
+  return `<li class="up${colorCls}" data-up="${u.id}">
     <p class="up-text">${esc(u.text)}</p>
-    <div class="up-meta">${fmtDateTime(u.createdAt)}
+    <div class="up-meta">
+      <span>${fmtDateTime(u.createdAt)}${u.editedAt ? ' · edited' : ''}</span>
+      <span class="spacer"></span>
+      ${swatches}
+      <button class="icon-btn quiet" data-action="move-up-update" title="Move up"${isFirst ? ' disabled' : ''}>▲</button>
+      <button class="icon-btn quiet" data-action="move-down-update" title="Move down"${isLast ? ' disabled' : ''}>▼</button>
+      <button class="icon-btn quiet" data-action="edit-update" title="Edit update">✎</button>
       <button class="icon-btn" data-action="del-update" title="Delete update">✕</button>
     </div>
   </li>`;
@@ -571,7 +622,6 @@ function upHtml(u) {
 
 function goalBodyHtml(g) {
   const completed = g.status === 'completed';
-  const updates = g.updates.slice().sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
   return `<div class="goal-body">
     ${g.description ? `<p class="desc">${esc(g.description)}</p>` : ''}
     <div class="two-col">
@@ -592,7 +642,7 @@ function goalBodyHtml(g) {
         <textarea class="update-input" rows="2" placeholder="What did you do toward this goal?"></textarea>
         <button class="btn small">Add update</button>
       </form>
-      <ul class="up-list">${updates.map(upHtml).join('')}</ul>
+      <ul class="up-list">${g.updates.map((u, i) => upHtml(g, u, i === 0, i === g.updates.length - 1)).join('')}</ul>
     </section>
     <footer class="goal-actions">
       <button class="btn small" data-action="edit-goal">Edit</button>
@@ -636,24 +686,30 @@ function goalHtml(g, isFirst, isLast) {
   </article>`;
 }
 
-/* keep half-typed milestone/update drafts across re-renders */
+/* keep half-typed milestone/update drafts (and an in-progress update edit) across re-renders */
 function captureDrafts() {
-  const map = {};
+  const drafts = { inputs: {}, upEdit: null };
   main.querySelectorAll('article.goal').forEach(a => {
     const ms = a.querySelector('.ms-input');
     const up = a.querySelector('.update-input');
-    if ((ms && ms.value) || (up && up.value)) map[a.dataset.id] = { ms: ms?.value || '', up: up?.value || '' };
+    if ((ms && ms.value) || (up && up.value)) drafts.inputs[a.dataset.id] = { ms: ms?.value || '', up: up?.value || '' };
   });
-  return map;
+  const ue = main.querySelector('.up-edit');
+  if (ue) drafts.upEdit = ue.value;
+  return drafts;
 }
-function restoreDrafts(map) {
-  for (const [id, d] of Object.entries(map)) {
+function restoreDrafts(drafts) {
+  for (const [id, d] of Object.entries(drafts.inputs)) {
     const a = main.querySelector(`article[data-id="${id}"]`);
     if (!a) continue;
     const ms = a.querySelector('.ms-input');
     const up = a.querySelector('.update-input');
     if (ms && d.ms) ms.value = d.ms;
     if (up && d.up) up.value = d.up;
+  }
+  if (drafts.upEdit != null) {
+    const ue = main.querySelector('.up-edit');
+    if (ue) ue.value = drafts.upEdit;
   }
 }
 
@@ -689,6 +745,11 @@ function renderMain() {
 
   const editInput = main.querySelector('.ms-edit');
   if (editInput) { editInput.focus(); editInput.select(); }
+  const editArea = main.querySelector('.up-edit');
+  if (editArea && document.activeElement !== editArea) {
+    editArea.focus();
+    editArea.setSelectionRange(editArea.value.length, editArea.value.length);
+  }
   if (focusAfterRender) {
     main.querySelector(focusAfterRender)?.focus();
     focusAfterRender = null;
@@ -725,6 +786,7 @@ main.addEventListener('click', e => {
       break;
     case 'edit-ms': {
       editingMilestone = { goalId: g.id, msId: el.closest('li.ms').dataset.ms };
+      editingUpdate = null;
       render();
       break;
     }
@@ -740,6 +802,30 @@ main.addEventListener('click', e => {
         g.updates = g.updates.filter(u => u.id !== upId);
         save();
       }
+      break;
+    }
+    case 'edit-update': {
+      editingUpdate = { goalId: g.id, upId: el.closest('li.up').dataset.up };
+      editingMilestone = null;
+      render();
+      break;
+    }
+    case 'save-update': commitUpdateEdit(el.closest('li.up').querySelector('.up-edit')); break;
+    case 'cancel-update-edit': editingUpdate = null; render(); break;
+    case 'color-update': {
+      const upId = el.closest('li.up').dataset.up;
+      const u = g.updates.find(x => x.id === upId);
+      if (u) { u.color = el.dataset.color || null; save(); }
+      break;
+    }
+    case 'move-up-update':
+    case 'move-down-update': {
+      const upId = el.closest('li.up').dataset.up;
+      const i = g.updates.findIndex(u => u.id === upId);
+      const j = i + (action === 'move-up-update' ? -1 : 1);
+      if (i < 0 || j < 0 || j >= g.updates.length) break;
+      [g.updates[i], g.updates[j]] = [g.updates[j], g.updates[i]];
+      save();
       break;
     }
     case 'move-up': moveGoal(g, -1); break;
@@ -768,7 +854,7 @@ main.addEventListener('submit', e => {
     const ta = form.querySelector('.update-input');
     const t = ta.value.trim();
     if (!t) return;
-    g.updates.push({ id: uid('u'), text: t, createdAt: now() });
+    g.updates.unshift({ id: uid('u'), text: t, createdAt: now(), editedAt: null, color: null }); // newest on top; reorder with the arrows
     ta.value = '';
     save();
   }
@@ -783,6 +869,17 @@ main.addEventListener('change', e => {
   m.done = cb.checked;
   save();
 });
+
+function commitUpdateEdit(ta) {
+  if (!editingUpdate || !ta) return;
+  const { goalId, upId } = editingUpdate;
+  editingUpdate = null;
+  const g = goalById(goalId);
+  const u = g?.updates.find(u => u.id === upId);
+  const t = ta.value.trim();
+  if (u && t && t !== u.text) { u.text = t; u.editedAt = now(); save(); }
+  else render();
+}
 
 function commitMsEdit(input) {
   if (!editingMilestone) return;
@@ -799,6 +896,11 @@ main.addEventListener('keydown', e => {
   if (e.target.classList?.contains('ms-edit')) {
     if (e.key === 'Enter') { e.preventDefault(); commitMsEdit(e.target); }
     else if (e.key === 'Escape') { editingMilestone = null; render(); }
+    return;
+  }
+  if (e.target.classList?.contains('up-edit')) {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); commitUpdateEdit(e.target); }
+    else if (e.key === 'Escape') { editingUpdate = null; render(); }
     return;
   }
   if ((e.key === 'Enter' || e.key === ' ') && e.target.dataset?.action === 'toggle') {
